@@ -181,13 +181,45 @@ USE PRODUCTOS
 
 SELECT * FROM ventas
 SELECT * FROM productos
-SELECT * FROM 
+
 
 --a) Realiza un procedimiento que actualice la columna Stock de la tabla Productos a partir de los registros de la tabla Ventas.
 
-
 --a.1) Suponemos que se han realizado una serie de Ventas (todos los registros añadidos en la tabla Ventas), así debemos realizar un 
 --procedimiento para actualizar la tabla Productos con las ventas realizadas que están en la tabla Ventas.
+
+
+CREATE OR ALTER PROCEDURE actualizaStock  AS
+BEGIN
+
+    DECLARE @codProducto int,
+    @codVenta VARCHAR(20)
+
+    DECLARE cProducto CURSOR FOR
+    SELECT CodProducto, CodVenta FROM Ventas
+
+    OPEN cProducto
+    FETCH cProducto INTO @codProducto, @codVenta
+
+    WHILE(@@FETCH_STATUS = 0)
+    BEGIN
+        IF ((SELECT Stock FROM Productos WHERE CodProducto = @codProducto) > (SELECT ISNULL(UnidadesVendidas,0)FROM Ventas WHERE CodVenta = @codVenta))
+        BEGIN
+            UPDATE Productos 
+            SET Stock = Stock - (SELECT ISNULL(UnidadesVendidas, 0)FROM Ventas WHERE CodVenta = @codVenta)
+            WHERE CodProducto = @codProducto
+        END
+        FETCH cProducto INTO @codProducto, @codVenta
+    END
+    CLOSE cProducto
+    DEALLOCATE cProducto
+END
+
+
+BEGIN TRANSACTION
+EXECUTE actualizaStock
+Select * from productos
+ROLLBACK
 
 /*a.2) Mediante Triggers: Tenemos la tabla Ventas y Productos, debemos actualizar la tabla Productos con las modificaciones que se hagan en la tabla Ventas de la siguiente forma:
 - Si se aumentan las unidades vendidas de una venta ya realizada (me pasarán el código de la venta, el código del producto y las unidades vendidas), se deberá actualizar el Stock
@@ -195,6 +227,38 @@ de la tabla Productos.
 - Si se realiza una devolución de una venta (me pasan el código de la venta, el código del producto y las unidades devueltas), se deberá actualizar el Stock de la tabla Productos.
 Hay que tener en cuenta que si se devuelven todas las unidades que habían sido vendidas, se deberá borrar esa venta de la tabla Ventas.
 */
+
+CREATE OR ALTER TRIGGER ActualizaStockVenta
+ON Ventas
+AFTER UPDATE
+AS
+BEGIN
+	UPDATE productos
+    SET Stock = stock - (I.UnidadesVendidas - D.UnidadesVendidas)
+    FROM productos AS P
+    JOIN Inserted AS I ON P.CodProducto = I.CodProducto
+    JOIN Deleted AS D ON P.CodProducto = D.CodProducto
+
+	DELETE FROM Ventas
+    WHERE CodVenta IN (
+        SELECT I.CodVenta
+        FROM Inserted AS I
+        JOIN Deleted AS D ON I.CodVenta = D.CodVenta
+        WHERE I.UnidadesVendidas = 0
+    )
+    
+END
+
+
+BEGIN TRANSACTION
+UPDATE ventas
+SET UnidadesVendidas = 0
+WHERE CodVenta = 'V1'
+SELECT * FROM ventas
+SELECT * FROM PRODUCTOS
+ROLLBACK
+
+INSERT INTO ventas (CodVenta, CodProducto, UnidadesVendidas) VALUES ('V5', '2', '2')
 
 /*
 b) Realiza un procedimiento que presente por pantalla un listado de las ventas con el siguiente formato:
@@ -204,37 +268,52 @@ Linea Producto: NombreLinea1
 	Prod11		UnidadesTotales1	ImporteTotal1
 */
 
-CREATE OR ALTER PROCEDURE actualizaStock
+
+CREATE OR ALTER PROCEDURE imprimeProductos
 AS
 BEGIN
 	DECLARE @codProducto int, 
-	@ventas int,
+	@lineaProducto varchar(20),
+	@importeTotal money,
 	@stock int
 
-
-	DECLARE cProducto CURSOR FOR 
-	SELECT CodProducto, Stock
+	DECLARE cLineaProducto CURSOR FOR
+	SELECT LineaProducto
 	FROM productos
-	OPEN cProducto
-	FETCH cProducto INTO @codProducto, @stock
+	GROUP BY LineaProducto 
+	OPEN cLineaProducto
+	FETCH cLineaProducto INTO @lineaProducto
 	WHILE(@@FETCH_STATUS = 0)
 	BEGIN
-		UPDATE productos
-		SET stock = stock - (SELECT ISNULL(SUM(UnidadesVendidas), 0) FROM ventas WHERE CodProducto = @codProducto)
-		WHERE CodProducto = @codProducto
-		FETCH cProducto INTO @codProducto, @stock
+		PRINT CONCAT('Linea de producto: ', @lineaProducto)
+		
+
+		DECLARE cPrintProductos CURSOR FOR 
+		SELECT codProducto, Stock
+		FROM productos
+		WHERE LineaProducto = @lineaProducto
+		OPEN cPrintProductos
+		FETCH cPrintProductos INTO @codProducto, @stock
+		WHILE(@@FETCH_STATUS = 0)
+		BEGIN
+			SET @importeTotal =
+								((SELECT PrecioUnitario FROM productos WHERE CodProducto = @codProducto) * 
+								(SELECT ISNULL(SUM(UnidadesVendidas), 0) FROM ventas WHERE CodProducto = @codProducto))
+			PRINT CONCAT(@codProducto, ' - ',@stock, ' - ', @importeTotal)
+			FETCH cPrintProductos INTO @codProducto, @stock
+		END
+		FETCH cLineaProducto INTO @lineaProducto
+		CLOSE cPrintProductos
+		DEALLOCATE cPrintProductos	
 	END
-	CLOSE cProducto
-	DEALLOCATE cProducto
+
+	CLOSE cLineaProducto
+	DEALLOCATE cLineaProducto
+	
 END
 
+EXECUTE imprimeProductos
 
-BEGIN TRANSACTION
-EXECUTE actualizaStock
-Select * from productos
-ROLLBACK
-
-
-
+SELECT * FROM productos
 
 
