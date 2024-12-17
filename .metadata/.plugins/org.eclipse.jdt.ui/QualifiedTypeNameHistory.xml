@@ -1,2 +1,10 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<qualifiedTypeNameHistroy/>
+<qualifiedTypeNameHistroy>
+    <fullyQualifiedTypeName name="base.datos.Transaccion"/>
+    <fullyQualifiedTypeName name="principal.SubmenuUsuarios"/>
+    <fullyQualifiedTypeName name="principal.SubmenuPosts"/>
+    <fullyQualifiedTypeName name="base.datos.ConsultasPosts"/>
+    <fullyQualifiedTypeName name="base.datos.ConsultasUsuario"/>
+    <fullyQualifiedTypeName name="base.datos.ConsultasLikes"/>
+    <fullyQualifiedTypeName name="principal.SubmenuLikes"/>
+</qualifiedTypeNameHistroy>
